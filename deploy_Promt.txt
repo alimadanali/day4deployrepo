@@ -10,3 +10,6 @@ commit all changes before pushing to github
 git remote add origin https://github.com/alimadanali/day4deployrepo.git
 git branch -M main
 git push -u origin main
+
+Make this project ready for Vercel deployment ,make sure swagger UI files and endpoint works
+correctly
