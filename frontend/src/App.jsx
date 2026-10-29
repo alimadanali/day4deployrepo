@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from './api.js';
+import { api, hasToken, setUnauthorizedHandler } from './api.js';
+import AuthForm from './AuthForm.jsx';
 import CustomerForm from './CustomerForm.jsx';
 import Chat from './Chat.jsx';
 
-export default function App() {
+function Customers({ user, onLogout }) {
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null); // null = closed, {} = new, {..} = edit
@@ -47,7 +48,11 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <h1>Customer Manager</h1>
-        <span className="count">{customers.length} customers</span>
+        <div className="userbox">
+          <span className="count">{customers.length} customers</span>
+          <span className="count">{user.name}</span>
+          <button className="btn" onClick={onLogout}>Log out</button>
+        </div>
       </header>
 
       <main className="layout">
@@ -106,4 +111,25 @@ export default function App() {
       )}
     </div>
   );
+}
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [checking, setChecking] = useState(hasToken());
+
+  const logout = useCallback(() => {
+    api.logout();
+    setUser(null);
+  }, []);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => setUser(null));
+    if (!hasToken()) return;
+    api.me().then(setUser).catch(() => {}).finally(() => setChecking(false));
+  }, []);
+
+  if (checking) return null;
+  if (!user) return <AuthForm onAuth={setUser} />;
+  // keyed by user so customer and chat state never carry over between accounts
+  return <Customers key={user.user_id} user={user} onLogout={logout} />;
 }

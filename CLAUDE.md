@@ -28,14 +28,16 @@ cd frontend && cp .env.example .env && npm install
 npm run dev | build | preview
 ```
 
-Backend env: `DATABASE_URL` (Postgres; the pool forces SSL with `rejectUnauthorized: false`), `ANTHROPIC_API_KEY`, `CORS_ORIGIN` (comma-separated, defaults to `*`), `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`). Frontend env: `VITE_API_URL` (no trailing slash). The `customers` table (`customer_id`, `customer_name`, `email`, `created_at`) is not created by any code here; it must already exist in the database.
+Backend env: `JWT_SECRET` (required), `JWT_EXPIRES_IN` (default `8h`), `DATABASE_URL` (Postgres; the pool forces SSL with `rejectUnauthorized: false`), `ANTHROPIC_API_KEY`, `CORS_ORIGIN` (comma-separated, defaults to `*`), `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`). Frontend env: `VITE_API_URL` (no trailing slash). The `customers` table (`customer_id`, `customer_name`, `email`, `created_at`) is not created by any code here; it must already exist. Auth adds a `users` table and `customers.user_id` via `backend/db/001_users_and_ownership.sql` (applied manually with psql; see README).
 
 ## Architecture
 
 **Backend entry points.** `src/app.js` builds and exports the Express app and holds all routes; `src/index.js` calls `app.listen` for local use, while `api/index.js` just re-exports the app as the Vercel serverless handler (`vercel.json` rewrites every path to `/api`). Keep route logic in `app.js` so both entries share it.
 
+**Auth and ownership.** `src/auth.js` holds bcrypt/JWT helpers and the `requireAuth` middleware (Bearer token sets `req.user`). `/api/customers*` and `/api/agent` are behind it; `/api/auth/register|login` return `{ token, user }`. Every customer function in `src/db.js` takes `userId` first and filters on `user_id`, so users can only see or change their own customers (others' ids return 404). Never add an unscoped customer query. The agent receives `userId` from `req.user` on the server and passes it to each tool handler; the model never sees or supplies it. The frontend keeps the token in `localStorage` (`src/api.js`) and clears it on any 401.
+
 **Three places describe the customer API and must be kept in sync** when adding/changing an endpoint or field:
-1. Routes in `src/app.js` (validation and error shape `{ error }` are done inline; async handlers go through the `wrap` helper)
+1. Routes in `src/app.js` (including the auth routes) (validation and error shape `{ error }` are done inline; async handlers go through the `wrap` helper)
 2. The hand-written OpenAPI spec in `src/swagger.js` (not generated from routes). Swagger UI is loaded from a CDN, deliberately, because serving it from node_modules is unreliable on Vercel.
 3. For agent-accessible operations, the tool definitions and `handlers` map in `src/agent.js`
 
@@ -43,7 +45,7 @@ All SQL lives in `src/db.js` (parameterized queries; `updateCustomer` uses `COAL
 
 **Agent (`POST /api/agent`).** `runAgent` in `src/agent.js` runs a manual tool-use loop against the Anthropic SDK (max 8 iterations): Claude calls DB-backed tools, results go back as `tool_result` blocks, and it returns `{ reply, toolCalls }`. The client sends `history` as plain `{role, content}` text turns; tool-use blocks are not persisted between requests. Tool errors are returned to the model with `is_error: true`.
 
-**Frontend.** `src/api.js` is the single fetch wrapper (errors surface `body.error`); `App.jsx` owns customer state, `CustomerForm.jsx` handles create/edit, `Chat.jsx` talks to `/api/agent`.
+**Frontend.** `src/api.js` is the single fetch wrapper (errors surface `body.error`); `App.jsx` handles session restore and renders `AuthForm.jsx` when logged out, otherwise the customer view, which owns customer state, `CustomerForm.jsx` handles create/edit, `Chat.jsx` talks to `/api/agent`.
 
 ## Deployment
 
