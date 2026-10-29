@@ -21,7 +21,23 @@ const user = {
     user_id: { type: 'integer', example: 1 },
     name: { type: 'string', example: 'Sam Sales' },
     email: { type: 'string', example: 'sam@example.com' },
-    role: { type: 'string', example: 'sales' },
+    role: { type: 'string', enum: ['sales', 'admin'], example: 'sales' },
+  },
+};
+const adminUser = {
+  type: 'object',
+  properties: {
+    ...user.properties,
+    customer_count: { type: 'integer', example: 12 },
+    created_at: { type: 'string', format: 'date-time' },
+  },
+};
+const adminStats = {
+  type: 'object',
+  properties: {
+    total_users: { type: 'integer', example: 5 },
+    total_sales_users: { type: 'integer', example: 4 },
+    total_customers: { type: 'integer', example: 40 },
   },
 };
 const authResponse = {
@@ -30,6 +46,8 @@ const authResponse = {
 };
 const secured = [{ bearerAuth: [] }];
 const unauthorized = { description: 'Missing, invalid or expired token' };
+const notSales = { description: 'Admin token: customers and the agent are for sales users only' };
+const notAdmin = { description: 'Not an admin' };
 const idParam = { name: 'id', in: 'path', required: true, schema: { type: 'integer' } };
 const json = (schema) => ({ 'application/json': { schema } });
 const ok = (description, schema) => ({ description, content: json(schema) });
@@ -37,7 +55,7 @@ const ok = (description, schema) => ({ description, content: json(schema) });
 export default {
   openapi: '3.0.3',
   info: { title: 'Customer API', version: '1.0.0', description: 'CRUD on customers plus an AI agent endpoint.' },
-  tags: [{ name: 'Auth' }, { name: 'Customers' }, { name: 'Agent' }],
+  tags: [{ name: 'Auth' }, { name: 'Admin' }, { name: 'Customers' }, { name: 'Agent' }],
   components: {
     securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
   },
@@ -69,7 +87,7 @@ export default {
     '/api/auth/login': {
       post: {
         tags: ['Auth'],
-        summary: 'Log in',
+        summary: 'Log in (sales users and the admin, e.g. admin@admin.com)',
         security: [],
         requestBody: {
           required: true,
@@ -93,20 +111,36 @@ export default {
         responses: { 200: ok('Current user', user), 401: unauthorized },
       },
     },
+    '/api/admin/users': {
+      get: {
+        tags: ['Admin'],
+        security: secured,
+        summary: 'List all users (sales and admin) with their customer counts',
+        responses: { 200: ok('Users', { type: 'array', items: adminUser }), 401: unauthorized, 403: notAdmin },
+      },
+    },
+    '/api/admin/stats': {
+      get: {
+        tags: ['Admin'],
+        security: secured,
+        summary: 'Totals for the admin dashboard',
+        responses: { 200: ok('Stats', adminStats), 401: unauthorized, 403: notAdmin },
+      },
+    },
     '/api/customers': {
       get: {
         tags: ['Customers'],
         security: secured,
         summary: 'List your customers',
         parameters: [{ name: 'name', in: 'query', schema: { type: 'string' }, description: 'Filter by name (contains)' }],
-        responses: { 200: ok('Customers', { type: 'array', items: customer }), 401: unauthorized },
+        responses: { 200: ok('Customers', { type: 'array', items: customer }), 401: unauthorized, 403: notSales },
       },
       post: {
         tags: ['Customers'],
         security: secured,
         summary: 'Create a customer',
         requestBody: { required: true, content: json({ ...input, required: ['customer_name', 'email'] }) },
-        responses: { 201: ok('Created', customer), 400: { description: 'Validation error' }, 401: unauthorized },
+        responses: { 201: ok('Created', customer), 400: { description: 'Validation error' }, 401: unauthorized, 403: notSales },
       },
     },
     '/api/customers/{id}': {
@@ -115,7 +149,7 @@ export default {
         security: secured,
         summary: 'Get a customer by id',
         parameters: [idParam],
-        responses: { 200: ok('Customer', customer), 401: unauthorized, 404: { description: 'Not found, or not owned by the caller' } },
+        responses: { 200: ok('Customer', customer), 401: unauthorized, 403: notSales, 404: { description: 'Not found, or not owned by the caller' } },
       },
       put: {
         tags: ['Customers'],
@@ -123,14 +157,14 @@ export default {
         summary: 'Update a customer',
         parameters: [idParam],
         requestBody: { required: true, content: json(input) },
-        responses: { 200: ok('Updated', customer), 401: unauthorized, 404: { description: 'Not found, or not owned by the caller' } },
+        responses: { 200: ok('Updated', customer), 401: unauthorized, 403: notSales, 404: { description: 'Not found, or not owned by the caller' } },
       },
       delete: {
         tags: ['Customers'],
         security: secured,
         summary: 'Delete a customer',
         parameters: [idParam],
-        responses: { 200: ok('Deleted', customer), 401: unauthorized, 404: { description: 'Not found, or not owned by the caller' } },
+        responses: { 200: ok('Deleted', customer), 401: unauthorized, 403: notSales, 404: { description: 'Not found, or not owned by the caller' } },
       },
     },
     '/api/agent': {
@@ -158,7 +192,7 @@ export default {
             type: 'object',
             properties: { reply: { type: 'string' }, toolCalls: { type: 'array', items: { type: 'object' } } },
           }),
-          401: unauthorized,
+          401: unauthorized, 403: notSales,
           503: { description: 'ANTHROPIC_API_KEY not configured' },
         },
       },

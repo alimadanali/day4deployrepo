@@ -3,6 +3,7 @@ import { api, hasToken, setUnauthorizedHandler } from './api.js';
 import AuthForm from './AuthForm.jsx';
 import CustomerForm from './CustomerForm.jsx';
 import Chat from './Chat.jsx';
+import AdminDashboard from './AdminDashboard.jsx';
 
 function Customers({ user, onLogout }) {
   const [customers, setCustomers] = useState([]);
@@ -131,5 +132,6 @@ export default function App() {
   if (checking) return null;
   if (!user) return <AuthForm onAuth={setUser} />;
   // keyed by user so customer and chat state never carry over between accounts
+  if (user.role === 'admin') return <AdminDashboard key={user.user_id} user={user} onLogout={logout} />;
   return <Customers key={user.user_id} user={user} onLogout={logout} />;
 }

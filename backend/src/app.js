@@ -4,7 +4,7 @@ import cors from 'cors';
 import swaggerSpec, { swaggerHtml } from './swagger.js';
 import * as db from './db.js';
 import { runAgent } from './agent.js';
-import { hashPassword, verifyPassword, signToken, requireAuth } from './auth.js';
+import { hashPassword, verifyPassword, signToken, requireAuth, requireSales, requireAdmin } from './auth.js';
 
 const app = express();
 const origins = (process.env.CORS_ORIGIN || '*').split(',').map((s) => s.trim());
@@ -55,7 +55,15 @@ app.get('/api/auth/me', requireAuth, wrap(async (req, res) => {
   user ? res.json(user) : res.status(401).json({ error: 'User no longer exists' });
 }));
 
-app.use(['/api/customers', '/api/agent'], requireAuth);
+app.get('/api/admin/users', requireAuth, requireAdmin, wrap(async (_req, res) => {
+  res.json(await db.listUsersWithCustomerCounts());
+}));
+
+app.get('/api/admin/stats', requireAuth, requireAdmin, wrap(async (_req, res) => {
+  res.json(await db.getStats());
+}));
+
+app.use(['/api/customers', '/api/agent'], requireAuth, requireSales);
 
 app.get('/api/customers', wrap(async (req, res) => {
   res.json(req.query.name

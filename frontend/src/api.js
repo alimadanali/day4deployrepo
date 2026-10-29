@@ -37,6 +37,8 @@ export const api = {
   login: (email, password) => authenticate('/api/auth/login', { email, password }),
   me: () => request('/api/auth/me'),
   logout: () => storage.clear(),
+  adminUsers: () => request('/api/admin/users'),
+  adminStats: () => request('/api/admin/stats'),
   list: (name) => request(`/api/customers${name ? `?name=${encodeURIComponent(name)}` : ''}`),
   create: (c) => request('/api/customers', { method: 'POST', body: JSON.stringify(c) }),
   update: (id, c) => request(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(c) }),

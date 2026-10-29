@@ -86,3 +86,25 @@ export async function deleteCustomer(userId, id) {
     ])
   ).rows[0];
 }
+
+// Admin dashboard queries. These return counts only, never customer rows; they are the one
+// intentional exception to per-user scoping above.
+export async function listUsersWithCustomerCounts() {
+  return (
+    await pool.query(
+      `SELECT u.user_id, u.name, u.email, u.role, u.created_at, count(c.customer_id)::int AS customer_count
+       FROM users u LEFT JOIN customers c ON c.user_id = u.user_id
+       GROUP BY u.user_id ORDER BY u.created_at, u.user_id`,
+    )
+  ).rows;
+}
+
+export async function getStats() {
+  return (
+    await pool.query(
+      `SELECT (SELECT count(*) FROM users)::int AS total_users,
+              (SELECT count(*) FROM users WHERE role = 'sales')::int AS total_sales_users,
+              (SELECT count(*) FROM customers)::int AS total_customers`,
+    )
+  ).rows[0];
+}
