@@ -52,19 +52,23 @@ const tools = [
 ];
 
 const handlers = {
-  get_all_customers: () => db.listCustomers(),
-  get_customer_by_name: ({ name }) => db.findCustomersByName(name),
-  add_customer: (a) => db.createCustomer(a),
-  update_customer: ({ customer_id, ...rest }) => db.updateCustomer(customer_id, rest),
-  delete_customer: ({ customer_id }) => db.deleteCustomer(customer_id),
+  get_all_customers: (_input, userId) => db.listCustomers(userId),
+  get_customer_by_name: ({ name }, userId) => db.findCustomersByName(userId, name),
+  add_customer: ({ customer_name, email }, userId) => db.createCustomer(userId, { customer_name, email }),
+  update_customer: ({ customer_id, ...rest }, userId) => db.updateCustomer(userId, customer_id, rest),
+  delete_customer: ({ customer_id }, userId) => db.deleteCustomer(userId, customer_id),
 };
 
 const SYSTEM =
   'You are a customer-management assistant. Use the provided tools to read and modify customer data ' +
-  'in the database. Never invent data; answer concisely based on tool results.';
+  "in the database. You only have access to the logged-in user's own customers; never claim to see others. " +
+  'Never invent data; answer concisely based on tool results.';
 
-/** Runs a tool-use loop; `history` is an array of {role, content} text turns. */
-export async function runAgent(message, history = []) {
+/**
+ * Runs a tool-use loop; `history` is an array of {role, content} text turns.
+ * `userId` comes from the authenticated session and scopes every tool; the model never supplies it.
+ */
+export async function runAgent(message, history, userId) {
   if (!process.env.ANTHROPIC_API_KEY) {
     const err = new Error('ANTHROPIC_API_KEY is not set in backend/.env');
     err.status = 503;
@@ -92,7 +96,7 @@ export async function runAgent(message, history = []) {
       let content;
       let is_error = false;
       try {
-        const out = await handlers[block.name](block.input);
+        const out = await handlers[block.name](block.input, userId);
         content = JSON.stringify(out ?? { message: 'not found' });
       } catch (e) {
         content = e.message;
