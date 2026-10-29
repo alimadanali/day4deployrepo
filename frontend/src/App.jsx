@@ -11,6 +11,7 @@ function Customers({ user, onLogout }) {
   const [editing, setEditing] = useState(null); // null = closed, {} = new, {..} = edit
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -33,6 +34,24 @@ function Customers({ user, onLogout }) {
     else await api.create(values);
     setEditing(null);
     load();
+  }
+
+  async function exportExcel() {
+    setExporting(true);
+    try {
+      setError('');
+      const { blob, filename } = await api.exportCustomers(search.trim());
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setExporting(false);
+    }
   }
 
   async function remove(c) {
@@ -65,6 +84,9 @@ function Customers({ user, onLogout }) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            <button className="btn" onClick={exportExcel} disabled={exporting}>
+              {exporting ? 'Exporting…' : 'Export to Excel'}
+            </button>
             <button className="btn primary" onClick={() => setEditing({})}>
               + Add customer
             </button>

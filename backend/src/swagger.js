@@ -143,6 +143,23 @@ export default {
         responses: { 201: ok('Created', customer), 400: { description: 'Validation error' }, 401: unauthorized, 403: notSales },
       },
     },
+    '/api/customers/export': {
+      get: {
+        tags: ['Customers'],
+        security: secured,
+        summary: 'Export your customers to an Excel (.xlsx) file',
+        description: 'Only your own customers are included; the optional name filter matches the list endpoint.',
+        parameters: [{ name: 'name', in: 'query', schema: { type: 'string' }, description: 'Filter by name (contains)' }],
+        responses: {
+          200: {
+            description: 'Excel workbook',
+            content: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': { schema: { type: 'string', format: 'binary' } } },
+          },
+          401: unauthorized,
+          403: notSales,
+        },
+      },
+    },
     '/api/customers/{id}': {
       get: {
         tags: ['Customers'],

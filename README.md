@@ -31,6 +31,10 @@ psql "$DATABASE_URL" -v admin_hash="$HASH" -f db/002_admin_role.sql
 
 The admin signs in on the normal login form and sees a dashboard of all users with their customer counts.
 
+## Exporting customers
+
+`GET /api/customers/export` (sales users, Bearer token) downloads the caller's own customers as `customers_YYYY-MM-DD.xlsx`; the optional `?name=` filter matches the list endpoint, and the UI's **Export to Excel** button sends the current search text. The file is built in memory and sent in one response, so it is bounded by Vercel's response size limit (about 4.5 MB), far above a normal customer list.
+
 ## Deploy to Vercel
 
 Create two Vercel projects from this repo.
