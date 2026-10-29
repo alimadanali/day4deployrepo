@@ -122,3 +122,13 @@ tbody tr:hover { background: #f9fafb; }
 .stats { display: flex; gap: 16px; flex-wrap: wrap; }
 .stat { display: flex; flex-direction: column; min-width: 160px; }
 .stat span { font-size: 1.75rem; font-weight: 600; }
+
+.modal-wide { max-width: 760px; max-height: 90vh; overflow-y: auto; }
+.deal-totals { display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9rem; color: var(--muted); }
+.deal-totals strong { color: inherit; margin-left: 4px; }
+select.stage { padding: 4px 8px; border-radius: 999px; border: 1px solid #d0d5dd; font-size: 0.85rem; }
+.stage-lead { background: #eef2ff; }
+.stage-qualified { background: #e0f2fe; }
+.stage-proposal { background: #fef3c7; }
+.stage-won { background: #dcfce7; }
+.stage-lost { background: #fee2e2; }

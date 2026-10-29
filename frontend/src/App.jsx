@@ -3,6 +3,7 @@ import { api, hasToken, setUnauthorizedHandler } from './api.js';
 import AuthForm from './AuthForm.jsx';
 import CustomerForm from './CustomerForm.jsx';
 import Chat from './Chat.jsx';
+import Deals from './Deals.jsx';
 import AdminDashboard from './AdminDashboard.jsx';
 
 function Customers({ user, onLogout }) {
@@ -12,6 +13,7 @@ function Customers({ user, onLogout }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [dealsFor, setDealsFor] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -55,8 +57,10 @@ function Customers({ user, onLogout }) {
   }
 
   async function remove(c) {
-    if (!window.confirm(`Delete ${c.customer_name}?`)) return;
     try {
+      const { length } = await api.listDeals(c.customer_id);
+      const also = length ? ` Its ${length} deal${length === 1 ? '' : 's'} will also be deleted.` : '';
+      if (!window.confirm(`Delete ${c.customer_name}?${also}`)) return;
       await api.remove(c.customer_id);
       load();
     } catch (e) {
@@ -113,6 +117,7 @@ function Customers({ user, onLogout }) {
                     <td>{c.email}</td>
                     <td>{c.created_at ? new Date(c.created_at).toLocaleDateString() : ''}</td>
                     <td className="actions">
+                      <button className="btn" onClick={() => setDealsFor(c)}>Deals</button>
                       <button className="btn" onClick={() => setEditing(c)}>Edit</button>
                       <button className="btn danger" onClick={() => remove(c)}>Delete</button>
                     </td>
@@ -128,6 +133,8 @@ function Customers({ user, onLogout }) {
 
         <Chat onDataChanged={load} />
       </main>
+
+      {dealsFor && <Deals customer={dealsFor} onClose={() => setDealsFor(null)} />}
 
       {editing && (
         <CustomerForm customer={editing} onSave={save} onCancel={() => setEditing(null)} />

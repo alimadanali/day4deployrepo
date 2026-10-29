@@ -31,6 +31,16 @@ psql "$DATABASE_URL" -v admin_hash="$HASH" -f db/002_admin_role.sql
 
 The admin signs in on the normal login form and sees a dashboard of all users with their customer counts.
 
+## Deals
+
+Apply `db/003_deals.sql` (no variables, safe to re-run) before deploying the deals-enabled backend:
+
+```
+psql "$DATABASE_URL" -f db/003_deals.sql
+```
+
+A deal is a sales opportunity with a customer (title, amount in INR, stage lead / qualified / proposal / won / lost, optional expected close date). Sales users manage them from the **Deals** button on each customer row, or through `/api/customers/:id/deals` and `/api/deals`. Deleting a customer also deletes its deals.
+
 ## Exporting customers
 
 `GET /api/customers/export` (sales users, Bearer token) downloads the caller's own customers as `customers_YYYY-MM-DD.xlsx`; the optional `?name=` filter matches the list endpoint, and the UI's **Export to Excel** button sends the current search text. The file is built in memory and sent in one response, so it is bounded by Vercel's response size limit (about 4.5 MB), far above a normal customer list.

@@ -49,6 +49,10 @@ export const api = {
     const filename = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || 'customers.xlsx';
     return { blob: await res.blob(), filename };
   },
+  listDeals: (customerId) => request(`/api/customers/${customerId}/deals`),
+  createDeal: (customerId, d) => request(`/api/customers/${customerId}/deals`, { method: 'POST', body: JSON.stringify(d) }),
+  updateDeal: (id, d) => request(`/api/deals/${id}`, { method: 'PUT', body: JSON.stringify(d) }),
+  removeDeal: (id) => request(`/api/deals/${id}`, { method: 'DELETE' }),
   create: (c) => request('/api/customers', { method: 'POST', body: JSON.stringify(c) }),
   update: (id, c) => request(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(c) }),
   remove: (id) => request(`/api/customers/${id}`, { method: 'DELETE' }),

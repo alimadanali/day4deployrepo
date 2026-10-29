@@ -15,6 +15,30 @@ const input = {
     email: { type: 'string', example: 'jane@example.com' },
   },
 };
+const deal = {
+  type: 'object',
+  properties: {
+    deal_id: { type: 'integer', example: 1 },
+    customer_id: { type: 'integer', example: 3 },
+    customer_name: { type: 'string', example: 'Sunrise Hospital', description: 'Only on GET /api/deals' },
+    title: { type: 'string', example: 'Brochure printing - Q4' },
+    amount: { type: 'number', example: 150000, description: 'In INR' },
+    stage: { type: 'string', enum: ['lead', 'qualified', 'proposal', 'won', 'lost'], example: 'lead' },
+    expected_close_date: { type: 'string', format: 'date', nullable: true, example: '2026-11-30' },
+    created_at: { type: 'string', format: 'date-time' },
+    updated_at: { type: 'string', format: 'date-time' },
+  },
+};
+const dealFields = {
+  title: deal.properties.title,
+  amount: deal.properties.amount,
+  stage: deal.properties.stage,
+  expected_close_date: deal.properties.expected_close_date,
+};
+const dealInput = { type: 'object', required: ['title', 'amount'], properties: dealFields };
+const dealUpdate = { type: 'object', properties: dealFields, description: 'Any subset; expected_close_date null clears it' };
+const dealNotFound = { description: 'Not found, or not owned by the caller' };
+const dealInvalid = { description: 'Validation error' };
 const user = {
   type: 'object',
   properties: {
@@ -55,7 +79,7 @@ const ok = (description, schema) => ({ description, content: json(schema) });
 export default {
   openapi: '3.0.3',
   info: { title: 'Customer API', version: '1.0.0', description: 'CRUD on customers plus an AI agent endpoint.' },
-  tags: [{ name: 'Auth' }, { name: 'Admin' }, { name: 'Customers' }, { name: 'Agent' }],
+  tags: [{ name: 'Auth' }, { name: 'Admin' }, { name: 'Customers' }, { name: 'Deals' }, { name: 'Agent' }],
   components: {
     securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
   },
@@ -182,6 +206,56 @@ export default {
         summary: 'Delete a customer',
         parameters: [idParam],
         responses: { 200: ok('Deleted', customer), 401: unauthorized, 403: notSales, 404: { description: 'Not found, or not owned by the caller' } },
+      },
+    },
+    '/api/customers/{id}/deals': {
+      get: {
+        tags: ['Deals'],
+        security: secured,
+        summary: 'List a customer deals (newest first)',
+        parameters: [idParam],
+        responses: { 200: ok('Deals', { type: 'array', items: deal }), 401: unauthorized, 403: notSales, 404: dealNotFound },
+      },
+      post: {
+        tags: ['Deals'],
+        security: secured,
+        summary: 'Create a deal for a customer',
+        parameters: [idParam],
+        requestBody: { required: true, content: json(dealInput) },
+        responses: { 201: ok('Created', deal), 400: dealInvalid, 401: unauthorized, 403: notSales, 404: dealNotFound },
+      },
+    },
+    '/api/deals': {
+      get: {
+        tags: ['Deals'],
+        security: secured,
+        summary: 'List all your deals, with customer_name',
+        parameters: [{ name: 'stage', in: 'query', schema: { type: 'string', enum: ['lead', 'qualified', 'proposal', 'won', 'lost'] } }],
+        responses: { 200: ok('Deals', { type: 'array', items: deal }), 400: dealInvalid, 401: unauthorized, 403: notSales },
+      },
+    },
+    '/api/deals/{id}': {
+      get: {
+        tags: ['Deals'],
+        security: secured,
+        summary: 'Get a deal by id',
+        parameters: [idParam],
+        responses: { 200: ok('Deal', deal), 401: unauthorized, 403: notSales, 404: dealNotFound },
+      },
+      put: {
+        tags: ['Deals'],
+        security: secured,
+        summary: 'Update a deal (partial)',
+        parameters: [idParam],
+        requestBody: { required: true, content: json(dealUpdate) },
+        responses: { 200: ok('Updated', deal), 400: dealInvalid, 401: unauthorized, 403: notSales, 404: dealNotFound },
+      },
+      delete: {
+        tags: ['Deals'],
+        security: secured,
+        summary: 'Delete a deal',
+        parameters: [idParam],
+        responses: { 200: ok('Deleted', deal), 401: unauthorized, 403: notSales, 404: dealNotFound },
       },
     },
     '/api/agent': {
