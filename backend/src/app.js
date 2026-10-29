@@ -4,11 +4,12 @@ import cors from 'cors';
 import swaggerSpec, { swaggerHtml } from './swagger.js';
 import * as db from './db.js';
 import { runAgent } from './agent.js';
+import { buildCustomersWorkbook } from './export.js';
 import { hashPassword, verifyPassword, signToken, requireAuth, requireSales, requireAdmin } from './auth.js';
 
 const app = express();
 const origins = (process.env.CORS_ORIGIN || '*').split(',').map((s) => s.trim());
-app.use(cors({ origin: origins.includes('*') ? true : origins }));
+app.use(cors({ origin: origins.includes('*') ? true : origins, exposedHeaders: ['Content-Disposition'] }));
 app.use(express.json());
 
 // Swagger UI assets come from a CDN: serving them from node_modules is unreliable on Vercel.
@@ -69,6 +70,18 @@ app.get('/api/customers', wrap(async (req, res) => {
   res.json(req.query.name
     ? await db.findCustomersByName(req.user.user_id, req.query.name)
     : await db.listCustomers(req.user.user_id));
+}));
+
+// Registered before /:id, otherwise "export" would be parsed as an id.
+app.get('/api/customers/export', wrap(async (req, res) => {
+  const name = req.query.name?.trim();
+  const customers = name
+    ? await db.findCustomersByName(req.user.user_id, name)
+    : await db.listCustomers(req.user.user_id);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="customers_${new Date().toISOString().slice(0, 10)}.xlsx"`);
+  await buildCustomersWorkbook(customers).xlsx.write(res);
+  res.end();
 }));
 
 app.get('/api/customers/:id', wrap(async (req, res) => {

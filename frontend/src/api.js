@@ -11,20 +11,24 @@ let onUnauthorized = () => {};
 export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
 export const hasToken = () => !!storage.get();
 
-async function request(path, options = {}) {
+async function send(path, options = {}) {
   const token = storage.get();
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) },
     ...options,
   });
-  const body = await res.json().catch(() => ({}));
   if (res.status === 401 && token) {
     storage.clear();
     onUnauthorized();
   }
-  if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);
-  return body;
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Request failed (${res.status})`);
+  }
+  return res;
 }
+
+const request = async (path, options) => (await send(path, options)).json().catch(() => ({}));
 
 const authenticate = async (path, payload) => {
   const { token, user } = await request(path, { method: 'POST', body: JSON.stringify(payload) });
@@ -40,6 +44,11 @@ export const api = {
   adminUsers: () => request('/api/admin/users'),
   adminStats: () => request('/api/admin/stats'),
   list: (name) => request(`/api/customers${name ? `?name=${encodeURIComponent(name)}` : ''}`),
+  exportCustomers: async (name) => {
+    const res = await send(`/api/customers/export${name ? `?name=${encodeURIComponent(name)}` : ''}`);
+    const filename = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') || '')?.[1] || 'customers.xlsx';
+    return { blob: await res.blob(), filename };
+  },
   create: (c) => request('/api/customers', { method: 'POST', body: JSON.stringify(c) }),
   update: (id, c) => request(`/api/customers/${id}`, { method: 'PUT', body: JSON.stringify(c) }),
   remove: (id) => request(`/api/customers/${id}`, { method: 'DELETE' }),
