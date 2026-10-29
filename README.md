@@ -10,6 +10,18 @@ cd backend  && cp .env.example .env && npm install && npm start   # http://local
 cd frontend && cp .env.example .env && npm install && npm run dev  # http://localhost:5173
 ```
 
+## Database migration
+
+Apply before running or deploying the auth-enabled backend (creates `users`, adds `customers.user_id`, assigns existing customers to a seed user `seed.sales@example.com`):
+
+```
+cd backend
+HASH=$(node db/hash-password.js '<seed password>')
+psql "$DATABASE_URL" -v seed_hash="$HASH" -f db/001_users_and_ownership.sql
+```
+
+Change the seed user's password or disable the account before production use.
+
 ## Deploy to Vercel
 
 Create two Vercel projects from this repo.
@@ -21,6 +33,8 @@ Create two Vercel projects from this repo.
 | `DATABASE_URL` | Postgres connection string |
 | `ANTHROPIC_API_KEY` | Anthropic API key |
 | `CORS_ORIGIN` | Frontend URL(s), comma-separated |
+| `JWT_SECRET` | Long random string used to sign login tokens |
+| `JWT_EXPIRES_IN` | optional, defaults to `8h` |
 | `ANTHROPIC_MODEL` | optional, defaults to `claude-sonnet-5-5` |
 
 **Frontend** (root directory `frontend`) - environment variable:

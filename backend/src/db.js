@@ -6,45 +6,83 @@ export const pool = new pg.Pool({
   max: 3, // keep serverless instances from exhausting DB connections
 });
 
-const COLS = 'customer_id, customer_name, email, created_at';
+const USER_COLS = 'user_id, name, email, role, created_at';
 
-export async function listCustomers() {
-  return (await pool.query(`SELECT ${COLS} FROM customers ORDER BY customer_id`)).rows;
+export async function createUser({ name, email, password_hash }) {
+  try {
+    return (
+      await pool.query(
+        `INSERT INTO users (name, email, password_hash) VALUES ($1, lower($2), $3) RETURNING ${USER_COLS}`,
+        [name, email, password_hash],
+      )
+    ).rows[0];
+  } catch (e) {
+    if (e.code === '23505') {
+      const err = new Error('Email is already registered');
+      err.status = 409;
+      throw err;
+    }
+    throw e;
+  }
 }
 
-export async function getCustomer(id) {
-  return (await pool.query(`SELECT ${COLS} FROM customers WHERE customer_id = $1`, [id])).rows[0];
+/** Includes password_hash; for login only. */
+export async function findUserByEmail(email) {
+  return (await pool.query('SELECT * FROM users WHERE email = lower($1)', [email])).rows[0];
 }
 
-export async function findCustomersByName(name) {
+export async function getUser(id) {
+  return (await pool.query(`SELECT ${USER_COLS} FROM users WHERE user_id = $1`, [id])).rows[0];
+}
+
+// Every customer query is scoped to its owner (userId) so no path can touch another user's rows.
+const COLS = 'customer_id, customer_name, email, created_at, user_id';
+
+export async function listCustomers(userId) {
+  return (
+    await pool.query(`SELECT ${COLS} FROM customers WHERE user_id = $1 ORDER BY customer_id`, [userId])
+  ).rows;
+}
+
+export async function getCustomer(userId, id) {
+  return (
+    await pool.query(`SELECT ${COLS} FROM customers WHERE user_id = $1 AND customer_id = $2`, [userId, id])
+  ).rows[0];
+}
+
+export async function findCustomersByName(userId, name) {
   return (
     await pool.query(
-      `SELECT ${COLS} FROM customers WHERE customer_name ILIKE $1 ORDER BY customer_id`,
-      [`%${name}%`],
+      `SELECT ${COLS} FROM customers WHERE user_id = $1 AND customer_name ILIKE $2 ORDER BY customer_id`,
+      [userId, `%${name}%`],
     )
   ).rows;
 }
 
-export async function createCustomer({ customer_name, email }) {
+export async function createCustomer(userId, { customer_name, email }) {
   return (
     await pool.query(
-      `INSERT INTO customers (customer_name, email) VALUES ($1, $2) RETURNING ${COLS}`,
-      [customer_name, email],
+      `INSERT INTO customers (customer_name, email, user_id) VALUES ($1, $2, $3) RETURNING ${COLS}`,
+      [customer_name, email, userId],
     )
   ).rows[0];
 }
 
-export async function updateCustomer(id, { customer_name, email }) {
+export async function updateCustomer(userId, id, { customer_name, email }) {
   return (
     await pool.query(
-      `UPDATE customers SET customer_name = COALESCE($2, customer_name), email = COALESCE($3, email)
-       WHERE customer_id = $1 RETURNING ${COLS}`,
-      [id, customer_name ?? null, email ?? null],
+      `UPDATE customers SET customer_name = COALESCE($3, customer_name), email = COALESCE($4, email)
+       WHERE user_id = $1 AND customer_id = $2 RETURNING ${COLS}`,
+      [userId, id, customer_name ?? null, email ?? null],
     )
   ).rows[0];
 }
 
-export async function deleteCustomer(id) {
-  return (await pool.query(`DELETE FROM customers WHERE customer_id = $1 RETURNING ${COLS}`, [id]))
-    .rows[0];
+export async function deleteCustomer(userId, id) {
+  return (
+    await pool.query(`DELETE FROM customers WHERE user_id = $1 AND customer_id = $2 RETURNING ${COLS}`, [
+      userId,
+      id,
+    ])
+  ).rows[0];
 }
