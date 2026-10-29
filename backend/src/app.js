@@ -26,7 +26,7 @@ const parseId = (req, res) => {
   return id;
 };
 
-const EMAIL_RE = /^[^s@]+@[^s@]+.[^s@]+$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const authResponse = (user) => ({
   token: signToken(user),
   user: { user_id: user.user_id, name: user.name, email: user.email, role: user.role },
