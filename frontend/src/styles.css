@@ -117,3 +117,8 @@ tbody tr:hover { background: #f9fafb; }
 .auth { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 14px; }
 .auth label { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: var(--muted); }
 .link { background: none; border: 0; color: var(--primary); cursor: pointer; font: inherit; }
+
+.admin { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+.stats { display: flex; gap: 16px; flex-wrap: wrap; }
+.stat { display: flex; flex-direction: column; min-width: 160px; }
+.stat span { font-size: 1.75rem; font-weight: 600; }

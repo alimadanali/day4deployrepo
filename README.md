@@ -22,6 +22,15 @@ psql "$DATABASE_URL" -v seed_hash="$HASH" -f db/001_users_and_ownership.sql
 
 Change the seed user's password or disable the account before production use.
 
+Then add the admin role and the default admin `admin@admin.com` (safe to re-run). Its initial password is `12345678`; **change it before production use** (there is no change-password feature: generate a new hash with `hash-password.js` and update `users.password_hash`):
+
+```
+HASH=$(node db/hash-password.js '12345678')
+psql "$DATABASE_URL" -v admin_hash="$HASH" -f db/002_admin_role.sql
+```
+
+The admin signs in on the normal login form and sees a dashboard of all users with their customer counts.
+
 ## Deploy to Vercel
 
 Create two Vercel projects from this repo.
