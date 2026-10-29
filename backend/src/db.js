@@ -87,6 +87,69 @@ export async function deleteCustomer(userId, id) {
   ).rows[0];
 }
 
+// Deals are scoped like customers: every query filters on the owner's user_id, which createDeal copies from the customer.
+// amount is cast to a number and the date formatted in Postgres, so JS never shifts it across time zones.
+const DEAL_COLS = `d.deal_id, d.customer_id, d.title, d.amount::float8 AS amount, d.stage,
+  to_char(d.expected_close_date, 'YYYY-MM-DD') AS expected_close_date, d.created_at, d.updated_at`;
+
+export async function listDeals(userId, stage) {
+  return (
+    await pool.query(
+      `SELECT ${DEAL_COLS}, c.customer_name FROM deals d JOIN customers c ON c.customer_id = d.customer_id
+       WHERE d.user_id = $1 AND ($2::text IS NULL OR d.stage = $2) ORDER BY d.created_at DESC, d.deal_id DESC`,
+      [userId, stage ?? null],
+    )
+  ).rows;
+}
+
+export async function listCustomerDeals(userId, customerId) {
+  return (
+    await pool.query(
+      `SELECT ${DEAL_COLS} FROM deals d WHERE d.user_id = $1 AND d.customer_id = $2
+       ORDER BY d.created_at DESC, d.deal_id DESC`,
+      [userId, customerId],
+    )
+  ).rows;
+}
+
+export async function getDeal(userId, id) {
+  return (
+    await pool.query(`SELECT ${DEAL_COLS} FROM deals d WHERE d.user_id = $1 AND d.deal_id = $2`, [userId, id])
+  ).rows[0];
+}
+
+/** Inserts only if the customer belongs to the user, in one statement; undefined when it does not. */
+export async function createDeal(userId, customerId, { title, amount, stage, expected_close_date }) {
+  const { rows } = await pool.query(
+    `INSERT INTO deals (customer_id, user_id, title, amount, stage, expected_close_date)
+     SELECT customer_id, user_id, $3, $4, $5, $6 FROM customers WHERE customer_id = $2 AND user_id = $1
+     RETURNING deal_id`,
+    [userId, customerId, title, amount, stage, expected_close_date ?? null],
+  );
+  return rows[0] && getDeal(userId, rows[0].deal_id);
+}
+
+const DEAL_FIELDS = ['title', 'amount', 'stage', 'expected_close_date'];
+
+/** Only keys present in `fields` are changed, so expected_close_date: null clears the date. */
+export async function updateDeal(userId, id, fields) {
+  const keys = DEAL_FIELDS.filter((k) => k in fields);
+  if (!keys.length) return getDeal(userId, id);
+  const sets = keys.map((k, i) => `${k} = $${i + 3}`).join(', ');
+  const { rowCount } = await pool.query(
+    `UPDATE deals SET ${sets}, updated_at = now() WHERE user_id = $1 AND deal_id = $2`,
+    [userId, id, ...keys.map((k) => fields[k])],
+  );
+  return rowCount ? getDeal(userId, id) : undefined;
+}
+
+export async function deleteDeal(userId, id) {
+  const deal = await getDeal(userId, id);
+  if (!deal) return undefined;
+  await pool.query('DELETE FROM deals WHERE user_id = $1 AND deal_id = $2', [userId, id]);
+  return deal;
+}
+
 // Admin dashboard queries. These return counts only, never customer rows; they are the one
 // intentional exception to per-user scoping above.
 export async function listUsersWithCustomerCounts() {

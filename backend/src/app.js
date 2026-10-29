@@ -64,7 +64,34 @@ app.get('/api/admin/stats', requireAuth, requireAdmin, wrap(async (_req, res) =>
   res.json(await db.getStats());
 }));
 
-app.use(['/api/customers', '/api/agent'], requireAuth, requireSales);
+app.use(['/api/customers', '/api/deals', '/api/agent'], requireAuth, requireSales);
+
+const STAGES = ['lead', 'qualified', 'proposal', 'won', 'lost'];
+const isRealDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
+
+/** Validates the deal fields in body; returns { error } or { fields }. Other keys (customer_id, user_id) are ignored. */
+function validateDeal(body, { partial }) {
+  const fields = {};
+  const { title, amount, stage, expected_close_date: date } = body ?? {};
+  if (!partial || title !== undefined) {
+    if (typeof title !== 'string' || !title.trim() || title.trim().length > 200)
+      return { error: 'title is required and must be 1 to 200 characters' };
+    fields.title = title.trim();
+  }
+  if (!partial || amount !== undefined) {
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0 || amount > 999999999999.99 || Number(amount.toFixed(2)) !== amount)
+      return { error: 'amount must be a number from 0 to 999999999999.99 with at most 2 decimals' };
+    fields.amount = amount;
+  }
+  if (stage !== undefined && !STAGES.includes(stage)) return { error: `stage must be one of ${STAGES.join(', ')}` };
+  if (stage !== undefined || !partial) fields.stage = stage ?? 'lead';
+  if (date !== undefined) {
+    if (date !== null && !(typeof date === 'string' && isRealDate(date)))
+      return { error: 'expected_close_date must be a valid date (YYYY-MM-DD) or null' };
+    fields.expected_close_date = date;
+  }
+  return { fields };
+}
 
 app.get('/api/customers', wrap(async (req, res) => {
   res.json(req.query.name
@@ -109,6 +136,51 @@ app.delete('/api/customers/:id', wrap(async (req, res) => {
   if (id === null) return;
   const c = await db.deleteCustomer(req.user.user_id, id);
   c ? res.json(c) : res.status(404).json({ error: 'Customer not found' });
+}));
+
+app.get('/api/customers/:id/deals', wrap(async (req, res) => {
+  const id = parseId(req, res);
+  if (id === null) return;
+  if (!(await db.getCustomer(req.user.user_id, id))) return res.status(404).json({ error: 'Customer not found' });
+  res.json(await db.listCustomerDeals(req.user.user_id, id));
+}));
+
+app.post('/api/customers/:id/deals', wrap(async (req, res) => {
+  const id = parseId(req, res);
+  if (id === null) return;
+  const { error, fields } = validateDeal(req.body, { partial: false });
+  if (error) return res.status(400).json({ error });
+  const deal = await db.createDeal(req.user.user_id, id, fields);
+  deal ? res.status(201).json(deal) : res.status(404).json({ error: 'Customer not found' });
+}));
+
+app.get('/api/deals', wrap(async (req, res) => {
+  const { stage } = req.query;
+  if (stage !== undefined && !STAGES.includes(stage)) return res.status(400).json({ error: `stage must be one of ${STAGES.join(', ')}` });
+  res.json(await db.listDeals(req.user.user_id, stage));
+}));
+
+app.get('/api/deals/:id', wrap(async (req, res) => {
+  const id = parseId(req, res);
+  if (id === null) return;
+  const d = await db.getDeal(req.user.user_id, id);
+  d ? res.json(d) : res.status(404).json({ error: 'Deal not found' });
+}));
+
+app.put('/api/deals/:id', wrap(async (req, res) => {
+  const id = parseId(req, res);
+  if (id === null) return;
+  const { error, fields } = validateDeal(req.body, { partial: true });
+  if (error) return res.status(400).json({ error });
+  const d = await db.updateDeal(req.user.user_id, id, fields);
+  d ? res.json(d) : res.status(404).json({ error: 'Deal not found' });
+}));
+
+app.delete('/api/deals/:id', wrap(async (req, res) => {
+  const id = parseId(req, res);
+  if (id === null) return;
+  const d = await db.deleteDeal(req.user.user_id, id);
+  d ? res.json(d) : res.status(404).json({ error: 'Deal not found' });
 }));
 
 app.post('/api/agent', wrap(async (req, res) => {
